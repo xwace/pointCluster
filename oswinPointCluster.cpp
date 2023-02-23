@@ -106,6 +106,8 @@ int pointPolygonTest(vector<Point> &pts, Point ip) {
 
         int64 dist = static_cast<int64>(ip.y - v0.y) * (v.x - v0.x)
                      - static_cast<int64>(ip.x - v0.x) * (v.y - v0.y);
+      
+        //int dist = (v - v0).cross(ip - v);//叉乘可用公式
 
         if (dist == 0)
             return 0;
