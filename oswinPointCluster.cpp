@@ -81,6 +81,62 @@ void cluster(vector<Point2f> &pts)
 /**
   ******************************************************************************
   * @author         : oswin
+  * @brief          : find_p0--查找y值最小的坐标点,存在多个y相同最小值时,选x最小的值
+  *                   comp极坐标比较谓词函数,按theta从小到大排序,相同角度取远的点
+  ******************************************************************************
+  */
+
+Point2f find_p0(std::vector<Point2f> &points) {
+    double miny;
+    Point minLoc;
+    Point2f minPt;
+    vector<Point> idx;
+
+    Mat src((int) points.size(), 2, CV_32F, &points[0]);
+    minMaxLoc(src.col(1), &miny, nullptr, &minLoc, nullptr);
+
+    findNonZero(src.col(1) == miny, idx);
+    auto cnt = (int) idx.size();
+    minPt = points[minLoc.y];
+
+    if (cnt == 1) {
+        return minPt;
+    }
+
+    for (auto id: idx) {
+        if (points[id.y].x <= minPt.x && points[id.y].y == minPt.y) minPt = points[id.y];
+    }
+
+    return minPt;
+}
+
+struct comp {
+    bool operator()(const Point2f &p1, const Point2f &p2) {
+        auto v1 = p1 - p0;
+        auto v2 = p2 - p0;
+
+        // P0排在首位
+        if (p1.x == p0.x && p1.y == p0.y) return true;
+        if (p2.x == p0.x && p2.y == p0.y) return false;
+
+        auto angle1 = atan2(v1.y, v1.x);
+        auto angle2 = atan2(v2.y, v2.x);
+
+        if (angle1 < angle2) {
+            return true;
+        } else if (angle1 == angle2) {
+            if (p1.y > p2.y) return true;
+            return false;
+        } else return false;
+    }
+
+    Point2f p0;
+    comp(Point2f p0_) : p0(p0_) {}
+};
+
+/**
+  ******************************************************************************
+  * @author         : oswin
   * @brief          : 从输入点pt向右作射线,与多边形交点个数为奇数时,pt在其内部,否则在外部
   *                   叉乘 cross(p1 p2 pt(p3))结果为正,代表射线右侧存在一个交点;
   ******************************************************************************
@@ -123,4 +179,6 @@ int pointPolygonTest(vector<Point> &pts, Point ip) {
 int main(){
   auto pts = getTxt();
   cluster(pts);
+  auto p0 = find_p0(pts);
+  sort(pts.begin(),pts.end(),comp(p0));
 }
