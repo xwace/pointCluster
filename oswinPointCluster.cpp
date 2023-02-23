@@ -86,6 +86,7 @@ void cluster(vector<Point2f> &pts)
   ******************************************************************************
   */
 
+//建议使用另外一个文件的find_p0函数,思路更加清晰
 Point2f find_p0(std::vector<Point2f> &points) {
     double miny;
     Point minLoc;
