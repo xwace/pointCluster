@@ -78,6 +78,46 @@ void cluster(vector<Point2f> &pts)
     cout << "cluster size: " << clusters.size() << endl;
 }
 
+/**
+  ******************************************************************************
+  * @author         : oswin
+  * @brief          : 从输入点pt向右作射线,与多边形交点个数为奇数时,pt在其内部,否则在外部
+  *                   叉乘 cross(p1 p2 pt(p3))结果为正,代表射线右侧存在一个交点;
+  ******************************************************************************
+  */
+
+int pointPolygonTest(vector<Point> &pts, Point ip) {
+
+    int counter{0};
+    Point v0;
+    Point v = pts.back();
+    for (auto pt: pts) {
+        v0 = v;
+        v = pt;
+
+        if ((v0.y <= ip.y && v.y <= ip.y) ||
+            (v0.y > ip.y && v.y > ip.y) ||
+            (v0.x < ip.x && v.x < ip.x)) {
+            if (ip.y == v.y && (ip.x == v.x || (ip.y == v0.y &&
+                                                ((v0.x <= ip.x && ip.x <= v.x) || (v.x <= ip.x && ip.x <= v0.x)))))
+                return 0;
+            continue;
+        }
+
+        int64 dist = static_cast<int64>(ip.y - v0.y) * (v.x - v0.x)
+                     - static_cast<int64>(ip.x - v0.x) * (v.y - v0.y);
+
+        if (dist == 0)
+            return 0;
+        if (v.y < v0.y)
+            dist = -dist;
+        counter += dist > 0 ? 1 : 0;
+    }
+
+    auto result = counter % 2 == 0 ? -1 : 1;
+    return result;
+}
+
 int main(){
   auto pts = getTxt();
   cluster(pts);
