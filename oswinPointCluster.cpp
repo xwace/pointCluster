@@ -151,7 +151,8 @@ int pointPolygonTest(vector<Point> &pts, Point ip) {
     for (auto pt: pts) {
         v0 = v;
         v = pt;
-
+        
+        //不满足这些条件的点生成一条向右的射线时候,该射线无法与这个折线有交点
         if ((v0.y <= ip.y && v.y <= ip.y) ||
             (v0.y > ip.y && v.y > ip.y) ||
             (v0.x < ip.x && v.x < ip.x)) {
