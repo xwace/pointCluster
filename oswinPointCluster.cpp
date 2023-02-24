@@ -177,9 +177,80 @@ int pointPolygonTest(vector<Point> &pts, Point ip) {
     return result;
 }
 
+/**
+  ******************************************************************************
+  * @author         : oswin
+  * @brief          : graham扫描线求凸包算法--输入按极坐标排序的点,输出凸包到栈
+  ******************************************************************************
+  */
+void intoStack(std::stack<Point2f> &Stack, Point2f &p) {
+    //获取栈最后两个元素
+    auto prev1 = Stack.top();
+    Stack.pop();
+    auto prev2 = Stack.top();
+    Stack.emplace(prev1);
+
+    //判断p是否要插入栈;
+    if ((prev1 - prev2).cross(p - prev1) < 0) {
+        if (Stack.size() == 2) return;
+        Stack.pop();//p右拐,尾元素弹出
+        intoStack(Stack, p);//弹出后,递归找到末两位与p构成左拐的元素
+    } else {
+        Stack.emplace(p);
+    }
+}
+
+void find_convex_hull(std::vector<Point2f> &points, Point2f pFirst) {
+    if (points.size() < 3) printf("Points not sufficient!");
+
+    Point2f P0 = points[0];
+    Point2f P1 = points[1];
+
+    std::stack<Point2f> ptStack;
+    ptStack.emplace(P0);
+    ptStack.emplace(P1);
+
+    for (int i = 2; i < (int) points.size(); ++i) {
+        if ((points[i - 1].y - pFirst.y) * (points[i].x - pFirst.x) ==
+            (points[i - 1].x - pFirst.x) * (points[i].y - pFirst.y)) {
+            i++;
+            continue;
+        }
+
+        auto p = points[i];
+        intoStack(ptStack, p);
+    }
+
+    //visualize
+    {
+        deque<Point2f> vec;
+        while (!ptStack.empty()) {
+            auto top = ptStack.top();
+            ptStack.pop();
+            vec.push_front(top);
+        }
+
+        Mat src((int) vec.size(), 2, CV_32F, &vec[0]);
+        Mat dst(300, 300, 0);
+        normalize(src, src, 0, 255, NORM_MINMAX);
+        src.convertTo(src, CV_32S);
+
+        Point last = Point(src.at<int>(0, 0), src.at<int>(0, 1));
+        for (int i = 0; i < vec.size(); ++i) {
+            auto p = Point(src.at<int>(i, 0), src.at<int>(i, 1));
+            line(dst, last, p, 255);
+            last = p;
+        }
+        namedWindow("dst", 2);
+        imshow("dst", dst);
+        waitKey();
+    }
+}
+
 int main(){
   auto pts = getTxt();
   cluster(pts);
   auto p0 = find_p0(pts);
   sort(pts.begin(),pts.end(),comp(p0));
+  find_convex_hull(pts,p0);
 }
