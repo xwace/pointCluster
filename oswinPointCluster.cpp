@@ -252,6 +252,11 @@ void find_convex_hull(std::vector<Point2f> &points, Point2f pFirst) {
   ******************************************************************************
   * @author         : oswin 这个算法速度最快
   * @brief          : 仿照opencv的sklansky算法,用指针(下标)方式实现求graham扫描线凸包
+  
+                     stack{..., prev(13),cur(37)} next(38), stacksize是stack指针
+                     prev,cur,next是points的指针. 
+                     模拟栈的功能:stacksize--左移(类似pop出栈),stack[stacksize] = next
+                     类似入栈.
   ******************************************************************************
   */
 void Sklansky(vector<Point2f> &points) {
