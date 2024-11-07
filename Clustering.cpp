@@ -239,11 +239,12 @@
 		std::vector<cv::Point2f> nogoZoneCenters;
 		cv::Mat zoneFilledMap;
 
-		SHARE_MAP::TShareMapPoint origin{999.9,999.9};
 		int map_h, map_w;
 		float dis_thres = 0.6;
 		int TRIGGER_CNT = 3;
 		int gridDis_thres = 6;
+		bool isMapReset{false};
+		SHARE_MAP::TShareMapPoint origin{999.9,999.9};
 
 		using ZoneType =  enum{STUCK=0,BUMPING=1};
 		ZoneType zoneType;
@@ -251,7 +252,8 @@
 		SmartNOGOZone(int zoneType_) 
 		{ 
 			zoneType = (ZoneType)zoneType_; 
-			zoneFilledMap.create(600,600,0);
+			zoneFilledMap = cv::Mat::zeros(800,800,0);
+			map_h = map_w = 800;
 		}
 
 		cv::Rect2f getRect(cv::Point2f center)
@@ -278,8 +280,8 @@
 		{
 			const SHARE_MAP::CMap& pMap = SHARE_MAP::CShareMap::GetInstance().GetMap();
 			const SHARE_MAP::TShareMapPoint& origin_cur = pMap.base_info.point;
-			map_h = pMap.base_info.height;
-			map_w = pMap.base_info.width;
+			int height = pMap.base_info.height;
+			int width = pMap.base_info.width;
 
 			//如果地图发生改变则清空所有禁区;
 			//为避免地图一直不变导致内存泄漏加入size限制
@@ -288,19 +290,29 @@
 				or allPoses.size()> 100000)
 			{
 				origin = origin_cur;
+				map_h = map_w = 800;
+
 				std::vector<cv::Point2f>().swap(allPoses);
+				std::vector<cv::Point2f>().swap(nogoZoneCenters);
+				zoneFilledMap = cv::Mat::zeros(800,800,0);
 			}
 
-			int sideLen = std::max(map_h, map_w);
+			int sideLen = std::max(height, width);
 
-			if (sideLen> 600)
+			if (sideLen > zoneFilledMap.rows)
 			{
-				cv::copyMakeBorder(zoneFilledMap,zoneFilledMap,200,200,200,200,BORDER_CONSTANT,0);
-			}
-			else if (sideLen> 1000)
-			{
-				int margin = (sideLen - 1000) *0.5 + 10;
-				cv::copyMakeBorder(zoneFilledMap,zoneFilledMap,margin,margin,margin,margin,BORDER_CONSTANT,0);
+				if (800 < sideLen and sideLen <= 1000)
+				{
+					zoneFilledMap = cv::Mat::zeros(1000,1000,0);
+					map_h = map_w = 1000;
+					isMapReset = true;
+				}
+				else if (1000 < sideLen and sideLen <= 1200)
+				{	//地图比1200都大时忽略更新
+					zoneFilledMap = cv::Mat::zeros(1200,1200,0);
+					map_h = map_w = 1200;
+					isMapReset = true;
+				}
 			}
 		}
 
@@ -325,31 +337,47 @@
 				TRIGGER_CNT = 10;
 				gridDis_thres = 3;
 			}
+
+			if (isMapReset)
+			{
+				FillAllRects();
+				isMapReset = false;
+			}
+			else
+			{
+				FillOneRect(pt);
+			}
 		}
 
-		void FillMap()
+		void FillOneRect(cv::Point2f cv_pose)
 		{
-			zoneFilledMap.setTo(0);
+			SLAM::RealtimePosition pose;
 
+			pose.m_PoseX = cv_pose.x;
+			pose.m_PoseY = cv_pose.y;
+
+			cv::Point constraintLoc = Pose2Point(pose);
+			cv::Point delta{gridDis_thres, gridDis_thres};
+			cv::Rect rect{constraintLoc - delta, constraintLoc + delta};
+			rect &= cv::Rect(0,0,zoneFilledMap.cols,zoneFilledMap.rows);
+			cv::Mat roiImg = zoneFilledMap(rect);
+
+			for (size_t i = 0; i < roiImg.rows; i++)
+			{
+				roiImg.row(i) += 1;
+			}
+		}
+		
+		void FillAllRects()
+		{
 			for(auto& pt:allPoses)
 			{
-				SLAM::RealtimePosition pose;
+				FillOneRect(pt);
+			}		
+		}
 
-				pose.m_PoseX = pt.x;
-				pose.m_PoseY = pt.y;
-
-				cv::Point constraintLoc = Pose2Point(pose);
-				cv::Point delta{gridDis_thres, gridDis_thres};
-				cv::Rect rect{constraintLoc - delta, constraintLoc + delta};
-				rect &= cv::Rect(0,0,zoneFilledMap.cols,zoneFilledMap.rows);
-				cv::Mat roiImg = zoneFilledMap(rect);
-
-				for (size_t i = 0; i < roiImg.rows; i++)
-				{
-					roiImg.row(i) += 1;
-				}
-			}
-
+		void calcNogoZoneCenters()
+		{
 			cv::Mat labels,stats,centroids;
 			cv::Mat zoneImg = zoneFilledMap >= TRIGGER_CNT;
 			int zoneCnt = cv::connectedComponentsWithStats(zoneImg, labels,stats,centroids);
@@ -369,15 +397,13 @@
 
 				cv::Point2f pose = Point2Pose(cv::Point2f{x,y});
 				nogoZoneCenters.push_back(std::move(pose));
-			}			
+			}	
 		}
 
 		std::vector<std::vector<SLAM::RealtimePosition>> getSmartNogoZones()
 		{
+			calcNogoZoneCenters();
 			std::vector<std::vector<SLAM::RealtimePosition>>nogoZones;
-
-			FillMap();
-
 			for (auto& center:nogoZoneCenters)
 			{
 				auto r = getRect(center);
